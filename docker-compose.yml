@@ -1,0 +1,87 @@
+version: '3'
+
+networks:
+  laravel:
+
+
+services:
+  nginx:
+    image: nginx:stable-alpine
+    container_name: nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./AdvancedStreamStats:/var/www
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+      - mysql
+    networks:
+      - laravel
+
+  mysql:
+    image: mysql:5.7.23
+    container_name: mysql
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: master
+      MYSQL_USER: adminuser
+      MYSQL_PASSWORD: adminsecret
+      MYSQL_ROOT_PASSWORD: adminsecret
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    volumes:
+      - ./dbdata:/var/lib/mysql
+    networks:
+      - laravel
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: app
+    volumes:
+      - ./AdvancedStreamStats:/var/www
+    ports:
+      - "9000:9000"
+    networks:
+      - laravel
+
+  composer:
+    build:
+      context: .
+      dockerfile: composer.dockerfile
+    container_name: composer
+    volumes:
+      - ./AdvancedStreamStats:/var/www
+    working_dir: /var/www
+    depends_on:
+      - app
+    networks:
+      - laravel
+    entrypoint: [ 'composer', '--ignore-platform-reqs' ]
+
+  npm:
+    image: node:13.7
+    container_name: npm
+    volumes:
+      - ./AdvancedStreamStats:/var/www
+    working_dir: /var/www
+    entrypoint: [ 'npm' ]
+
+  artisan:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: artisan
+    volumes:
+      - ./AdvancedStreamStats:/var/www:delegated
+    depends_on:
+      - mysql
+    working_dir: /var/www
+    entrypoint: [ 'php', '/var/www/artisan' ]
+    networks:
+      - laravel
